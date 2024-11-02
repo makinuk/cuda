@@ -1,31 +1,33 @@
-# llama_model_api.py
 import os
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import LlamaForCausalLM, LlamaTokenizer
 from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-# FastAPI başlat
+# FastAPI uygulaması başlat
 app = FastAPI()
 
-# Dağıtık yapılandırma
+# Dağıtık yapılandırmayı başlat
 init_process_group(backend="nccl")
 
 # GPU ID ve dünya boyutunu belirle
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
-world_size = int(os.getenv("WORLD_SIZE", "2"))  # İki makinada çalıştıracağımız için 2 olarak ayarlanır
 device = torch.device(f"cuda:{local_rank}")
 
-# Modeli yükleyin
-model_path = os.path.expanduser("~/.llama/checkpoints/Llama3.1-70B-Instruct/")
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForCausalLM.from_pretrained(model_path)
+# Model ve Tokenizer Yolları
+model_path = "/root/.llama/checkpoints/Llama3.1-70B-Instruct/"
+model_weights_path = os.path.join(model_path, "consolidated.00.pth")
+config_path = os.path.join(model_path, "config.json")
+
+# Model ve tokenizer'ı yükleyin
+tokenizer = LlamaTokenizer.from_pretrained(model_path)
+model = LlamaForCausalLM.from_pretrained(model_weights_path, config=config_path)
 model = model.to(device)
 model = DDP(model, device_ids=[local_rank])
 
-# Sorgu modelini tanımla
+# API Sorgusu Yapısı
 class Query(BaseModel):
     text: str
 
